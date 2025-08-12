@@ -45,10 +45,14 @@ String orderStartCharacters   = "D";
 String orderEndCharacters     = "X";
 String argumentCharacters     = "0123456789ABCDEF";
 String speedkmhSemaphore      = "1";
+String speedkmhIdealSemaphore = "5";
+String breaksSemaphore        = "6";
 
 float speedkmhMin             =     0;
 float speedkmhMax             =   200;
-float speedkmh                =     0;
+float speedkmh                =     0; //actual speed * 10
+float speedkmhIdeal           =     0; //target speed * 10
+float breaksControl           =     0; //breaks control value in % * 10
 
 bool     GP8302_is_working    = false;
 uint16_t currentLoopMin       =  1146; //minimum value for slow fan speed (0 = 0mA, 655 = 4mA)
@@ -109,9 +113,19 @@ void loop() {
       String _semaphore  = "";
       _semaphore = orderArgument.substring(4, 5);
 
+      if (_semaphore == speedkmhIdealSemaphore) {
+        _partString = orderArgument.substring(0, 4);
+        speedkmhIdeal = strtol(_partString.c_str(), NULL, 16) / 10.0; //target speed converter
+      }
+
+      if (_semaphore == breaksSemaphore) {
+        _partString = orderArgument.substring(0, 4);
+        breaksControl = strtol(_partString.c_str(), NULL, 16) / 10.0; //breaks control value converter
+      }
+
       if (_semaphore == speedkmhSemaphore) {
         _partString = orderArgument.substring(0, 4);
-        speedkmh = strtol(_partString.c_str(), NULL, 16);
+        speedkmh = strtol(_partString.c_str(), NULL, 16) / 10.0;
         if (speedkmh < speedkmhMin) speedkmh = speedkmhMin;
 
         if (GP8302_is_working) {
@@ -122,12 +136,18 @@ void loop() {
         }
 
         if (GP8413_is_working) {
-          //Channel 0 (output from 0 to DACOutMax)
-          DAC0Out = (float(DACOutMax) / (speedkmhMax - speedkmhMin)) * (speedkmh - speedkmhMin);
-          if (DAC0Out > DACOutMax) DAC0Out = DACOutMax;
+          //Channel 0 (Throttle)
+          //**************************
+          //add throttle control code
+          //**************************
+          //speedkmhIdeal;
+          //speedkmh;
+          //breaksControl;
+          //
+          //DAC0Out = ;
           GP8413.setDACOutVoltage(DAC0Out, 0);
 
-          //Channel 1 (output from DACOutMin to DACOutMax)
+          //Channel 1 (Inverter, output from DACOutMin to DACOutMax)
           DAC1Out = (float(DACOutMax - DACOutMin) / (speedkmhMax - speedkmhMin)) * (speedkmh - speedkmhMin) + DACOutMin;
           if (DAC1Out < DACOutMin) DAC1Out = DACOutMin;
           if (DAC1Out > DACOutMax) DAC1Out = DACOutMax;
