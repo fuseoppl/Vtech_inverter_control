@@ -1,6 +1,6 @@
 //Maciej Strzebonski
 //fuse@op.pl
-//ver.1.0
+//ver.2.0
 //works with Dyno software from V-tech Dynamometers
 //SKU:DFR0972 GP8302 0-25mA
 //SKU:DFR1073 GP8413 2x DAC 0-5V or 0-10V
@@ -9,25 +9,25 @@
 
 #include "DFRobot_GP8XXX.h"
 /**************************
-----------------------------
-| A2 |  A1 | A0 | i2c_addr |
-----------------------------
-| 0  |  0  | 0  |   0x58   |
-----------------------------
-| 0  |  0  | 1  |   0x59   |
-----------------------------
-| 0  |  1  | 0  |   0x5A   |
-----------------------------
-| 0  |  1  | 1  |   0x5B   |
-----------------------------
-| 1  |  0  | 0  |   0x5C   |
-----------------------------
-| 1  |  0  | 1  |   0x5D   |
-----------------------------
-| 1  |  1  | 0  |   0x5E   |
-----------------------------
-| 1  |  1  | 1  |   0x5F   |
-----------------------------
+---------------------------
+| A2 | A1 | A0 | i2c_addr |
+---------------------------
+| 0  | 0  | 0  |   0x58   |
+---------------------------
+| 0  | 0  | 1  |   0x59   |
+---------------------------
+| 0  | 1  | 0  |   0x5A   |
+---------------------------
+| 0  | 1  | 1  |   0x5B   |
+---------------------------
+| 1  | 0  | 0  |   0x5C   |
+---------------------------
+| 1  | 0  | 1  |   0x5D   |
+---------------------------
+| 1  | 1  | 0  |   0x5E   |
+---------------------------
+| 1  | 1  | 1  |   0x5F   |
+---------------------------
 ***************************/
 DFRobot_GP8413 GP8413(/*deviceAddr=*/0x5F); //DAC 0-5V or 0-10V
 DFRobot_GP8302 GP8302;                      //0-25mA
@@ -42,17 +42,16 @@ bool stringComplete           = false;
 bool orderStart               = false;
 bool orderEnd                 = false;
 String orderStartCharacters   = "D";
-String orderEndCharacters     = "X";
+String orderEndCharacters     = "Y";
 String argumentCharacters     = "0123456789ABCDEF";
-String speedkmhSemaphore      = "1";
-String speedkmhIdealSemaphore = "5";
-String breaksSemaphore        = "6";
+String speedkmhSemaphore      = "1"; //speed x1
+String speedkmhIdealSemaphore = "2"; //speed x10
 
-float speedkmhMin             =     0;
-float speedkmhMax             =   200;
-float speedkmh                =     0; //actual speed * 10
-float speedkmhIdeal           =     0; //target speed * 10
-float breaksControl           =     0; //breaks control value in % * 10
+float speedkmhMin             =     0; //min speed x1
+float speedkmhMax             =   200; //max speed x1
+float speedkmh                =     0; //actual speed x1 or x10 depends on semaphore
+float speedkmhIdeal           =     0; //target speed x10
+float breaksControl           =     0; //breaks control value in % x10
 
 bool     GP8302_is_working    = false;
 uint16_t currentLoopMin       =  1146; //minimum value for slow fan speed (0 = 0mA, 655 = 4mA)
@@ -105,29 +104,42 @@ void loop() {
   }
 
   if (stringComplete) {
+    noInterrupts();
+
     stringComplete = false;
     lastCommandTime = millis();
 
-    if (order == "DX" && orderArgument.length() == 5) {
+    if (order == "DY") { //new protocol
       String _partString = "";
-      String _semaphore  = "";
-      _semaphore = orderArgument.substring(4, 5);
+      String _semaphore = orderArgument.substring(orderArgument.length() - 1, orderArgument.length());
 
-      if (_semaphore == speedkmhIdealSemaphore) {
+      if (_semaphore == speedkmhIdealSemaphore) { //full set of data from Driving cycles mode, speed x10
         _partString = orderArgument.substring(0, 4);
+        speedkmh = strtol(_partString.c_str(), NULL, 16) / 10.0; //actual speed converter
+
+        _partString = orderArgument.substring(4, 8);
         speedkmhIdeal = strtol(_partString.c_str(), NULL, 16) / 10.0; //target speed converter
-      }
-
-      if (_semaphore == breaksSemaphore) {
-        _partString = orderArgument.substring(0, 4);
+/* debugger
+Serial.print(speedkmh);
+Serial.print(";");
+Serial.println(speedkmhIdeal);
+*/
+        /*
+        _partString = orderArgument.substring(8, 12);
         breaksControl = strtol(_partString.c_str(), NULL, 16) / 10.0; //breaks control value converter
+        */
+      }
+      else if (_semaphore == speedkmhSemaphore) { //iverter, only speed from other test modes, speed x1
+        _partString = orderArgument.substring(0, 4);
+        speedkmh = strtol(_partString.c_str(), NULL, 16);
+        if (speedkmh < speedkmhMin) speedkmh = speedkmhMin;
+/* debugger  
+Serial.print(speedkmh);
+Serial.print(";");
+*/        
       }
 
-      if (_semaphore == speedkmhSemaphore) {
-        _partString = orderArgument.substring(0, 4);
-        speedkmh = strtol(_partString.c_str(), NULL, 16) / 10.0;
-        if (speedkmh < speedkmhMin) speedkmh = speedkmhMin;
-
+      if (_semaphore == speedkmhIdealSemaphore) { //full set of data
         if (GP8302_is_working) {
           currentLoop = (float(currentLoopMax - currentLoopMin) / (speedkmhMax - speedkmhMin)) * (speedkmh - speedkmhMin) + currentLoopMin;
           if (currentLoop < currentLoopMin) currentLoop = currentLoopMin;
@@ -154,7 +166,28 @@ void loop() {
           GP8413.setDACOutVoltage(DAC1Out, 1);
         } 
       }
+      else if (_semaphore == speedkmhSemaphore) { //only actual speed
+        if (GP8302_is_working) {
+          currentLoop = (float(currentLoopMax - currentLoopMin) / (speedkmhMax - speedkmhMin)) * (speedkmh - speedkmhMin) + currentLoopMin;
+          if (currentLoop < currentLoopMin) currentLoop = currentLoopMin;
+          if (currentLoop > currentLoopMax) currentLoop = currentLoopMax;          
+          GP8302.setDACOutElectricCurrent(currentLoop);
+        }
+
+        if (GP8413_is_working) {
+          //Channel 0 (Throttle)
+          GP8413.setDACOutVoltage(0, 0); //only Inverter!
+
+          //Channel 1 (Inverter, output from DACOutMin to DACOutMax)
+          DAC1Out = (float(DACOutMax - DACOutMin) / (speedkmhMax - speedkmhMin)) * (speedkmh - speedkmhMin) + DACOutMin;
+          if (DAC1Out < DACOutMin) DAC1Out = DACOutMin;
+          if (DAC1Out > DACOutMax) DAC1Out = DACOutMax;
+          GP8413.setDACOutVoltage(DAC1Out, 1);
+        }
+      }
     }
+
+    interrupts();
   }
 }
 
