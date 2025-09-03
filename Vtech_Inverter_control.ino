@@ -2,10 +2,12 @@
 //fuse@op.pl
 //ver.2.0
 //works with Dyno software from V-tech Dynamometers
-//SKU:DFR0972 GP8302 0-25mA
-//SKU:DFR1073 GP8413 2x DAC 0-5V or 0-10V
+//SKU:DFR0972 GP8302 0-25mA (current Loop D/A Converter)
+//SKU:DFR1073 GP8413 2x 0-5V or 0-10V (voltage D/A Converter)
 
 #define GP8413_eOutputRange5V  //GP8413 DAC output range 0-5V instead 0-10V
+
+//#define debugger //for debugging only!
 
 #include "DFRobot_GP8XXX.h"
 /**************************
@@ -34,7 +36,7 @@ DFRobot_GP8302 GP8302;                      //0-25mA
 
 unsigned long actualTime      =    0;
 unsigned long lastCommandTime =    0;
-unsigned long waitCommandTime = 4000; //4 seconds after the last command, set the minimum control value
+unsigned long waitCommandTime = 4000; //4 seconds after the last command, reset outputs
 String inputString            = "";
 String order                  = "";
 String orderArgument          = "";
@@ -44,14 +46,16 @@ bool orderEnd                 = false;
 String orderStartCharacters   = "D";
 String orderEndCharacters     = "Y";
 String argumentCharacters     = "0123456789ABCDEF";
-String speedkmhSemaphore      = "1"; //speed x1
-String speedkmhIdealSemaphore = "2"; //speed x10
+String speedkmhSemaphore      = "1"; //the input speed data is multiplied by 1
+String speedkmhIdealSemaphore = "2"; //the input speed data is multiplied by 10 (for higher resolution)
 
-float speedkmhMin             =     0; //min speed x1
-float speedkmhMax             =   200; //max speed x1
-float speedkmh                =     0; //actual speed x1 or x10 depends on semaphore
-float speedkmhIdeal           =     0; //target speed x10
-float breaksControl           =     0; //breaks control value in % x10
+float speedkmhMin             =     0; //min speed x1, the minimum speed that will be transferred to calculate the fan speed, 
+//it can be assumed to be 0 and the minimum fan speed can be regulated by the minimum value of the converter controlling the inverter (currentLoopMin or DACOutMin)
+
+float speedkmhMax             =   200; //max speed x1, full fan speed at this value
+float speedkmh                =     0; //actual speed, the input data is multiplied by 1 or 10, depends on semaphore
+float speedkmhIdeal           =     0; //target speed, the input data is multiplied by 10 (for higher resolution), parameter from the Driving Cycles mode
+float breaksControl           =     0; //breaks control value in %, the input data is multiplied by 10 (for higher resolution)
 
 bool     GP8302_is_working    = false;
 uint16_t currentLoopMin       =  1146; //minimum value for slow fan speed (0 = 0mA, 655 = 4mA)
@@ -95,6 +99,7 @@ void setup(){
 void loop() {
   actualTime = millis();
 
+//reset outputs if there is no input data for the time specified in the parameters
   if (actualTime > lastCommandTime + waitCommandTime) {
     if (GP8302_is_working) GP8302.setDACOutElectricCurrent(currentLoopMin);
     if (GP8413_is_working) {
@@ -109,7 +114,7 @@ void loop() {
     stringComplete = false;
     lastCommandTime = millis();
 
-    if (order == "DY") { //new protocol
+    if (order == "DY") { //DY, new protocol
       String _partString = "";
       String _semaphore = orderArgument.substring(orderArgument.length() - 1, orderArgument.length());
 
@@ -119,28 +124,35 @@ void loop() {
 
         _partString = orderArgument.substring(4, 8);
         speedkmhIdeal = strtol(_partString.c_str(), NULL, 16) / 10.0; //target speed converter
-/* debugger
-Serial.print(speedkmh);
-Serial.print(";");
-Serial.println(speedkmhIdeal);
-*/
+
         /*
         _partString = orderArgument.substring(8, 12);
         breaksControl = strtol(_partString.c_str(), NULL, 16) / 10.0; //breaks control value converter
         */
-      }
-      else if (_semaphore == speedkmhSemaphore) { //iverter, only speed from other test modes, speed x1
-        _partString = orderArgument.substring(0, 4);
-        speedkmh = strtol(_partString.c_str(), NULL, 16);
-        if (speedkmh < speedkmhMin) speedkmh = speedkmhMin;
-/* debugger  
+
+#if defined(debugger)
 Serial.print(speedkmh);
 Serial.print(";");
-*/        
+Serial.print(speedkmhIdeal);
+Serial.print(";");
+Serial.println(breaksControl);
+Serial.flush();
+#endif       
+      }
+      else if (_semaphore == speedkmhSemaphore) { //speed from other test modes for inverter control, speed x1
+        _partString = orderArgument.substring(0, 4);
+        speedkmh = strtol(_partString.c_str(), NULL, 16); //actual speed converter
+        if (speedkmh < speedkmhMin) speedkmh = speedkmhMin;
+
+#if defined(debugger)
+Serial.println(speedkmh);
+Serial.flush();
+#endif       
       }
 
       if (_semaphore == speedkmhIdealSemaphore) { //full set of data
         if (GP8302_is_working) {
+          //(Inverter, output is from currentLoopMin to currentLoopMax)
           currentLoop = (float(currentLoopMax - currentLoopMin) / (speedkmhMax - speedkmhMin)) * (speedkmh - speedkmhMin) + currentLoopMin;
           if (currentLoop < currentLoopMin) currentLoop = currentLoopMin;
           if (currentLoop > currentLoopMax) currentLoop = currentLoopMax;          
@@ -159,7 +171,7 @@ Serial.print(";");
           //DAC0Out = ;
           GP8413.setDACOutVoltage(DAC0Out, 0);
 
-          //Channel 1 (Inverter, output from DACOutMin to DACOutMax)
+          //Channel 1 (Inverter, output is from DACOutMin to DACOutMax)
           DAC1Out = (float(DACOutMax - DACOutMin) / (speedkmhMax - speedkmhMin)) * (speedkmh - speedkmhMin) + DACOutMin;
           if (DAC1Out < DACOutMin) DAC1Out = DACOutMin;
           if (DAC1Out > DACOutMax) DAC1Out = DACOutMax;
@@ -176,7 +188,7 @@ Serial.print(";");
 
         if (GP8413_is_working) {
           //Channel 0 (Throttle)
-          GP8413.setDACOutVoltage(0, 0); //only Inverter!
+          GP8413.setDACOutVoltage(0, 0); //only actual speed, so only the inverter can be controlled!
 
           //Channel 1 (Inverter, output from DACOutMin to DACOutMax)
           DAC1Out = (float(DACOutMax - DACOutMin) / (speedkmhMax - speedkmhMin)) * (speedkmh - speedkmhMin) + DACOutMin;
