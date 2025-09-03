@@ -4,6 +4,21 @@
 //works with Dyno software from V-tech Dynamometers
 //SKU:DFR0972 GP8302 0-25mA (current Loop D/A Converter)
 //SKU:DFR1073 GP8413 2x 0-5V or 0-10V (voltage D/A Converter)
+//input data:
+//DYAAAABBBBCCCCDDDD2\r
+//DY, header
+//2, semaphore
+//AAAA = actual speed, the input data is multiplied by 10 (for higher resolution), in hex
+// eg.: 29.8 km/h * 10 = 298 to hex -> 012A
+//BBBB = target speed, the input data is multiplied by 10 (for higher resolution), parameter from the Driving Cycles mode, in hex
+//CCCC = target speed seconds ahead, the input data is multiplied by 10 (for higher resolution), parameter from the Driving Cycles mode, in hex
+//DDDD = breaks control value in %, the input data is multiplied by 10 (for higher resolution), parameter from the Driving Cycles mode, in hex
+
+//DYAAAA1\r
+//DY, header
+//1, semaphore
+//AAAA = actual speed, the input data is multiplied by 10 (for higher resolution), in hex
+// eg.: 276.5 km/h * 10 = 2765 to hex -> 0ACD
 
 #define GP8413_eOutputRange5V  //GP8413 DAC output range 0-5V instead 0-10V
 
@@ -53,7 +68,7 @@ float speedkmhMin             =     0; //min speed x1, the minimum speed that wi
 //it can be assumed to be 0 and the minimum fan speed can be regulated by the minimum value of the converter controlling the inverter (currentLoopMin or DACOutMin)
 
 float speedkmhMax             =   200; //max speed x1, full fan speed at this value
-float speedkmh                =     0; //actual speed, the input data is multiplied by 10
+float speedkmh                =     0; //actual speed, the input data is multiplied by 10 (for higher resolution)
 float speedkmhIdeal           =     0; //target speed, the input data is multiplied by 10 (for higher resolution), parameter from the Driving Cycles mode
 float speedkmhIdealPredicted  =     0; //target speed seconds ahead, the input data is multiplied by 10 (for higher resolution), parameter from the Driving Cycles mode
 float breaksControl           =     0; //breaks control value in %, the input data is multiplied by 10 (for higher resolution), parameter from the Driving Cycles mode
