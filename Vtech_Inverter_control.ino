@@ -1,6 +1,6 @@
 //Maciej Strzebonski
 //fuse@op.pl
-//ver.2.0
+//ver.2.1
 //works with Dyno software from V-tech Dynamometers
 //SKU:DFR0972 GP8302 0-25mA (current Loop D/A Converter)
 //SKU:DFR1073 GP8413 2x 0-5V or 0-10V (voltage D/A Converter)
@@ -46,16 +46,17 @@ bool orderEnd                 = false;
 String orderStartCharacters   = "D";
 String orderEndCharacters     = "Y";
 String argumentCharacters     = "0123456789ABCDEF";
-String speedkmhSemaphore      = "1"; //the input speed data is multiplied by 1
+String speedkmhSemaphore      = "1"; //the input speed data is multiplied by 10 (for higher resolution)
 String speedkmhIdealSemaphore = "2"; //the input speed data is multiplied by 10 (for higher resolution)
 
 float speedkmhMin             =     0; //min speed x1, the minimum speed that will be transferred to calculate the fan speed, 
 //it can be assumed to be 0 and the minimum fan speed can be regulated by the minimum value of the converter controlling the inverter (currentLoopMin or DACOutMin)
 
 float speedkmhMax             =   200; //max speed x1, full fan speed at this value
-float speedkmh                =     0; //actual speed, the input data is multiplied by 1 or 10, depends on semaphore
+float speedkmh                =     0; //actual speed, the input data is multiplied by 10
 float speedkmhIdeal           =     0; //target speed, the input data is multiplied by 10 (for higher resolution), parameter from the Driving Cycles mode
-float breaksControl           =     0; //breaks control value in %, the input data is multiplied by 10 (for higher resolution)
+float speedkmhIdealPredicted  =     0; //target speed seconds ahead, the input data is multiplied by 10 (for higher resolution), parameter from the Driving Cycles mode
+float breaksControl           =     0; //breaks control value in %, the input data is multiplied by 10 (for higher resolution), parameter from the Driving Cycles mode
 
 bool     GP8302_is_working    = false;
 uint16_t currentLoopMin       =  1146; //minimum value for slow fan speed (0 = 0mA, 655 = 4mA)
@@ -118,30 +119,33 @@ void loop() {
       String _partString = "";
       String _semaphore = orderArgument.substring(orderArgument.length() - 1, orderArgument.length());
 
-      if (_semaphore == speedkmhIdealSemaphore) { //full set of data from Driving cycles mode, speed x10
+      if (_semaphore == speedkmhIdealSemaphore) { //full set of data from Driving cycles mode, all speed x10
         _partString = orderArgument.substring(0, 4);
         speedkmh = strtol(_partString.c_str(), NULL, 16) / 10.0; //actual speed converter
 
         _partString = orderArgument.substring(4, 8);
         speedkmhIdeal = strtol(_partString.c_str(), NULL, 16) / 10.0; //target speed converter
 
-        /*
         _partString = orderArgument.substring(8, 12);
+        speedkmhIdealPredicted = strtol(_partString.c_str(), NULL, 16) / 10.0; //target speed converter
+
+        _partString = orderArgument.substring(12, 16);
         breaksControl = strtol(_partString.c_str(), NULL, 16) / 10.0; //breaks control value converter
-        */
 
 #if defined(debugger)
 Serial.print(speedkmh);
 Serial.print(";");
 Serial.print(speedkmhIdeal);
 Serial.print(";");
+Serial.print(speedkmhIdealPredicted);
+Serial.print(";");
 Serial.println(breaksControl);
 Serial.flush();
 #endif       
       }
-      else if (_semaphore == speedkmhSemaphore) { //speed from other test modes for inverter control, speed x1
+      else if (_semaphore == speedkmhSemaphore) { //speed from other test modes for inverter control, speed x10
         _partString = orderArgument.substring(0, 4);
-        speedkmh = strtol(_partString.c_str(), NULL, 16); //actual speed converter
+        speedkmh = strtol(_partString.c_str(), NULL, 16) / 10.0; //actual speed converter
         if (speedkmh < speedkmhMin) speedkmh = speedkmhMin;
 
 #if defined(debugger)
