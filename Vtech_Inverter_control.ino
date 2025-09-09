@@ -2,23 +2,38 @@
 //fuse@op.pl
 //ver.2.1
 //works with Dyno software from V-tech Dynamometers
+//
+//additional shields for Arduino UNO:
 //SKU:DFR0972 GP8302 0-25mA (current Loop D/A Converter)
 //SKU:DFR1073 GP8413 2x 0-5V or 0-10V (voltage D/A Converter)
-//input data:
+//
+//input data (Drivig cycles):
 //DYAAAABBBBCCCCDDDD2\r
-//DY, header
-//2, semaphore
-//AAAA = actual speed, the input data is multiplied by 10 (for higher resolution), in hex
+// DY, header
+// AAAA = actual speed, the input data is multiplied by 10 (for higher resolution), in hex
 // eg.: 29.8 km/h * 10 = 298 to hex -> 012A
-//BBBB = target speed, the input data is multiplied by 10 (for higher resolution), parameter from the Driving Cycles mode, in hex
-//CCCC = target speed seconds ahead, the input data is multiplied by 10 (for higher resolution), parameter from the Driving Cycles mode, in hex
-//DDDD = breaks control value in %, the input data is multiplied by 10 (for higher resolution), parameter from the Driving Cycles mode, in hex
+// BBBB = target speed, the input data is multiplied by 10 (for higher resolution), parameter from the Driving cycles mode, in hex
+// CCCC = target speed seconds ahead, the input data is multiplied by 10 (for higher resolution), parameter from the Driving cycles mode, in hex
+// DDDD = breaks control value in %, the input data is multiplied by 10 (for higher resolution), parameter from the Driving cycles mode, in hex
+// 2, semaphore (Driving cycles)
+// \r end of line (carriage return)
+//
+// eg.: DY012A01120100023A2\r
+// actual speed = 29.8 km/h
+// target speed = 27.4 km/h
+// target speed seconds ahead = 25.6 km/h
+// breaks control = 57%
 
+//input data (other test):
 //DYAAAA1\r
-//DY, header
-//1, semaphore
-//AAAA = actual speed, the input data is multiplied by 10 (for higher resolution), in hex
+// DY, header
+// AAAA = actual speed, the input data is multiplied by 10 (for higher resolution), in hex
 // eg.: 276.5 km/h * 10 = 2765 to hex -> 0ACD
+// 1, semaphore (other test)
+// \r end of line (carriage return)
+//
+// eg.: DY0ACD1\r
+// actual speed = 276.5 km/h
 
 #define GP8413_eOutputRange5V  //GP8413 DAC output range 0-5V instead 0-10V
 
@@ -61,8 +76,8 @@ bool orderEnd                 = false;
 String orderStartCharacters   = "D";
 String orderEndCharacters     = "Y";
 String argumentCharacters     = "0123456789ABCDEF";
-String speedkmhSemaphore      = "1"; //the input speed data is multiplied by 10 (for higher resolution)
-String speedkmhIdealSemaphore = "2"; //the input speed data is multiplied by 10 (for higher resolution)
+String speedkmhSemaphore      = "1"; //the all incoming data is multiplied by 10 (for higher resolution)
+String speedkmhIdealSemaphore = "2"; //the all incoming data is multiplied by 10 (for higher resolution)
 
 float speedkmhMin             =     0; //min speed x1, the minimum speed that will be transferred to calculate the fan speed, 
 //it can be assumed to be 0 and the minimum fan speed can be regulated by the minimum value of the converter controlling the inverter (currentLoopMin or DACOutMin)
@@ -74,12 +89,12 @@ float speedkmhIdealPredicted  =     0; //target speed seconds ahead, the input d
 float breaksControl           =     0; //breaks control value in %, the input data is multiplied by 10 (for higher resolution), parameter from the Driving Cycles mode
 
 bool     GP8302_is_working    = false;
-uint16_t currentLoopMin       =  1146; //minimum value for slow fan speed (0 = 0mA, 655 = 4mA)
+uint16_t currentLoopMin       =  1146; //value for minimum fan speed (0 = 0mA, 655 = 4mA)
 uint16_t currentLoopMax       =  3276; //maximum value (GP8302 output resolution is 12-bit, 2^12 - 1 = 4095 = 25mA, 3276 = 20mA)
 uint16_t currentLoop          =     0;
 
 bool     GP8413_is_working    = false;
-uint16_t DACOutMin            =  6000; //minimum value for slow fan speed (0 = 0V)
+uint16_t DACOutMin            =  6000; //value for minimum fan speed (0 = 0V)
 uint16_t DACOutMax            = 32767; //maximum value (GP8413 output resolution is 15-bit, 2^15 - 1 = 32767 = 5 or 10V, depending on DAC configuration)
 uint16_t DAC0Out              =     0;
 uint16_t DAC1Out              =     0;
@@ -142,7 +157,7 @@ void loop() {
         speedkmhIdeal = strtol(_partString.c_str(), NULL, 16) / 10.0; //target speed converter
 
         _partString = orderArgument.substring(8, 12);
-        speedkmhIdealPredicted = strtol(_partString.c_str(), NULL, 16) / 10.0; //target speed converter
+        speedkmhIdealPredicted = strtol(_partString.c_str(), NULL, 16) / 10.0; //target speed converter seconds ahead
 
         _partString = orderArgument.substring(12, 16);
         breaksControl = strtol(_partString.c_str(), NULL, 16) / 10.0; //breaks control value converter
