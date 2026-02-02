@@ -1,6 +1,6 @@
 //Maciej Strzebonski
 //fuse@op.pl
-//ver.2.1
+//ver.2.2
 //works with Dyno software from V-tech Dynamometers
 //
 //additional shields for Arduino UNO:
@@ -8,21 +8,25 @@
 //SKU:DFR1073 GP8413 2x 0-5V or 0-10V (voltage D/A Converter)
 //
 //input data (Drivig cycles):
-//DYAAAABBBBCCCCDDDD2\r
+//DYAAAABBBBCCCCDDDDEEEEFFFF2\r
 // DY, header
-// AAAA = actual speed, the input data is multiplied by 10 (for higher resolution), in hex
+// AAAA = actual speed in km/h (int from 0 to 32767), the input data is multiplied by 10 (for higher resolution), in hex
 // eg.: 29.8 km/h * 10 = 298 to hex -> 012A
-// BBBB = target speed, the input data is multiplied by 10 (for higher resolution), parameter from the Driving cycles mode, in hex
-// CCCC = target speed seconds ahead, the input data is multiplied by 10 (for higher resolution), parameter from the Driving cycles mode, in hex
+// BBBB = target speed in km/h (int from 0 to 32767), the input data is multiplied by 10 (for higher resolution), parameter from the Driving cycles mode, in hex
+// CCCC = target speed seconds ahead in km/h (int from 0 to 32767), the input data is multiplied by 10 (for higher resolution), parameter from the Driving cycles mode, in hex
 // DDDD = breaks control value in %, the input data is multiplied by 10 (for higher resolution), parameter from the Driving cycles mode, in hex
+// EEEE = inertial power in kW (unsigned int from -32768 to 32767), the input data is multiplied by 10 (for higher resolution), parameter from the Driving cycles mode, in hex
+// FFFF = loadcell power in kW (int from 0 to 32767), the input data is multiplied by 10 (for higher resolution), parameter from the Driving cycles mode, in hex
 // 2, semaphore (Driving cycles)
 // \r end of line (carriage return)
 //
-// eg.: DY012A01120100023A2\r
+// eg.: DY012A01120100023AFD76028A2\r
 // actual speed = 29.8 km/h
 // target speed = 27.4 km/h
 // target speed seconds ahead = 25.6 km/h
 // breaks control = 57%
+// inertial power = -65kW
+// loadcell power = 65kW
 
 //input data (other test):
 //DYAAAA1\r
@@ -76,17 +80,19 @@ bool orderEnd                 = false;
 String orderStartCharacters   = "D";
 String orderEndCharacters     = "Y";
 String argumentCharacters     = "0123456789ABCDEF";
-String speedkmhSemaphore      = "1"; //the all incoming data is multiplied by 10 (for higher resolution)
-String speedkmhIdealSemaphore = "2"; //the all incoming data is multiplied by 10 (for higher resolution)
+String speedkmhSemaphore      = "1"; //the all incoming data from other tests is multiplied by 10 (for higher resolution)
+String speedkmhIdealSemaphore = "2"; //the all incoming data data from Driving cycles mode is multiplied by 10 (for higher resolution)
 
 float speedkmhMin             =     0; //min speed x1, the minimum speed that will be transferred to calculate the fan speed, 
 //it can be assumed to be 0 and the minimum fan speed can be regulated by the minimum value of the converter controlling the inverter (currentLoopMin or DACOutMin)
 
 float speedkmhMax             =   200; //max speed x1, full fan speed at this value
-float speedkmh                =     0; //actual speed, the input data is multiplied by 10 (for higher resolution)
-float speedkmhIdeal           =     0; //target speed, the input data is multiplied by 10 (for higher resolution), parameter from the Driving Cycles mode
-float speedkmhIdealPredicted  =     0; //target speed seconds ahead, the input data is multiplied by 10 (for higher resolution), parameter from the Driving Cycles mode
-float breaksControl           =     0; //breaks control value in %, the input data is multiplied by 10 (for higher resolution), parameter from the Driving Cycles mode
+float speedkmh                =     0; //actual speed in km/h
+float speedkmhIdeal           =     0; //target speed in km/h, parameter from the Driving Cycles mode
+float speedkmhIdealPredicted  =     0; //target speed seconds ahead in km/h, parameter from the Driving Cycles mode
+float breaksControl           =     0; //breaks control value in %, parameter from the Driving Cycles mode
+float inertialPower           =     0; //inertial power in kW, parameter from the Driving Cycles mode
+float loadcellPower           =     0; //loadcell power in kW, parameter from the Driving Cycles mode
 
 bool     GP8302_is_working    = false;
 uint16_t currentLoopMin       =  1146; //value for minimum fan speed (0 = 0mA, 655 = 4mA)
@@ -157,10 +163,16 @@ void loop() {
         speedkmhIdeal = strtol(_partString.c_str(), NULL, 16) / 10.0; //target speed converter
 
         _partString = orderArgument.substring(8, 12);
-        speedkmhIdealPredicted = strtol(_partString.c_str(), NULL, 16) / 10.0; //target speed converter seconds ahead
+        speedkmhIdealPredicted = strtol(_partString.c_str(), NULL, 16) / 10.0; //target speed seconds ahead converter
 
         _partString = orderArgument.substring(12, 16);
         breaksControl = strtol(_partString.c_str(), NULL, 16) / 10.0; //breaks control value converter
+
+        _partString = orderArgument.substring(16, 20);
+        inertialPower = strtol(_partString.c_str(), NULL, 16) / 10.0; //inertial power
+
+        _partString = orderArgument.substring(20, 24);
+        loadcellPower = strtol(_partString.c_str(), NULL, 16) / 10.0; //loadcell power value converter
 
 #if defined(debugger)
 Serial.print(speedkmh);
@@ -169,7 +181,11 @@ Serial.print(speedkmhIdeal);
 Serial.print(";");
 Serial.print(speedkmhIdealPredicted);
 Serial.print(";");
-Serial.println(breaksControl);
+Serial.print(breaksControl);
+Serial.flush();
+Serial.print(inertialPower);
+Serial.flush();
+Serial.println(loadcellPower);
 Serial.flush();
 #endif       
       }
