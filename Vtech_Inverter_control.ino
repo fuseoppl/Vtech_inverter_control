@@ -10,13 +10,13 @@
 //input data (Drivig cycles):
 //DYAAAABBBBCCCCDDDDEEEEFFFF2\r
 // DY, header
-// AAAA = actual speed in km/h (int from 0 to 32767), the input data is multiplied by 10 (for higher resolution), in hex
+// AAAA = actual speed in km/h (unsigned int from 0 to 32767), the input data is multiplied by 10 (for higher resolution), in hex
 // eg.: 29.8 km/h * 10 = 298 to hex -> 012A
-// BBBB = target speed in km/h (int from 0 to 32767), the input data is multiplied by 10 (for higher resolution), parameter from the Driving cycles mode, in hex
-// CCCC = target speed seconds ahead in km/h (int from 0 to 32767), the input data is multiplied by 10 (for higher resolution), parameter from the Driving cycles mode, in hex
-// DDDD = breaks control value in %, the input data is multiplied by 10 (for higher resolution), parameter from the Driving cycles mode, in hex
-// EEEE = inertial power in kW (unsigned int from -32768 to 32767), the input data is multiplied by 10 (for higher resolution), parameter from the Driving cycles mode, in hex
-// FFFF = loadcell power in kW (int from 0 to 32767), the input data is multiplied by 10 (for higher resolution), parameter from the Driving cycles mode, in hex
+// BBBB = target speed in km/h (unsigned int from 0 to 32767), the input data is multiplied by 10 (for higher resolution), parameter from the Driving cycles mode, in hex
+// CCCC = target speed seconds ahead in km/h (unsigned int from 0 to 32767), the input data is multiplied by 10 (for higher resolution), parameter from the Driving cycles mode, in hex
+// DDDD = breaks control value in % (unsigned int from 0 to 1000), the input data is multiplied by 10 (for higher resolution), parameter from the Driving cycles mode, in hex
+// EEEE = inertial power in kW (signed int from -32768 to 32767), the input data is multiplied by 10 (for higher resolution), parameter from the Driving cycles mode, in hex
+// FFFF = loadcell power in kW (unsigned int from 0 to 32767), the input data is multiplied by 10 (for higher resolution), parameter from the Driving cycles mode, in hex
 // 2, semaphore (Driving cycles)
 // \r end of line (carriage return)
 //
